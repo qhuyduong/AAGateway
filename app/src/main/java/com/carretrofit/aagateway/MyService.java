@@ -86,6 +86,14 @@ public class MyService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        if (usbFileDescriptor != null) {
+            try {
+                usbFileDescriptor.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Cannot close usb file descriptor");
+            }
+        }
+
         if (udcOutputStream != null) {
             try {
                 udcOutputStream.write("\n".getBytes());
@@ -224,7 +232,6 @@ public class MyService extends Service {
                     tcpOutputStream.write(Arrays.copyOf(buf, length));
                 }
 
-                usbFileDescriptor.close();
                 Log.d(TAG, "usb - end");
                 stopSelf();
             } catch (Exception e) {
