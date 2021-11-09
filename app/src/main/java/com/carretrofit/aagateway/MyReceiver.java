@@ -10,7 +10,6 @@ public class MyReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d(TAG, "Received intent");
         if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             Log.d(TAG, "Received boot completed");
             Intent i = new Intent(context, MyService.class);
