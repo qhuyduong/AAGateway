@@ -21,22 +21,30 @@ public class MyReceiver extends BroadcastReceiver {
             Intent i = new Intent(context, MyService.class);
             context.startService(i);
         } else if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
-            Log.d(TAG, "Received wifi state changed");
+            int wifiState =
+                    intent.getIntExtra(
+                            WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_UNKNOWN);
 
-            WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-            WifiConfiguration wifiConfig = new WifiConfiguration();
-            wifiConfig.SSID = "Car Retrofit";
-            try {
-                wifiManager.setWifiEnabled(false);
-                Method method =
-                        wifiManager
-                                .getClass()
-                                .getMethod(
-                                        "setWifiApEnabled", WifiConfiguration.class, boolean.class);
-                method.invoke(wifiManager, wifiConfig, true);
-            } catch (Exception e) {
-                Log.e(TAG, e.getMessage());
+            if (wifiState == WifiManager.WIFI_STATE_ENABLED) {
+                Log.d(TAG, "Enabling hotspot");
+                enableHotspot(context);
             }
+        }
+    }
+
+    private void enableHotspot(Context context) {
+        WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.SSID = "Car Retrofit";
+        try {
+            wifiManager.setWifiEnabled(false);
+            Method method =
+                    wifiManager
+                            .getClass()
+                            .getMethod("setWifiApEnabled", WifiConfiguration.class, boolean.class);
+            method.invoke(wifiManager, wifiConfig, true);
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
         }
     }
 }
