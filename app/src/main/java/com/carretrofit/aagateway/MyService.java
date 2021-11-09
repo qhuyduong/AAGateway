@@ -58,27 +58,10 @@ public class MyService extends Service {
         }
 
         Log.d(TAG, "Service started");
-        File file = new File(USB_ACCESSORY);
-        try {
-            usbFileDescriptor =
-                    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_WRITE);
-            FileDescriptor fd = usbFileDescriptor.getFileDescriptor();
-            usbInputStream = new FileInputStream(fd);
-            usbOutputStream = new FileOutputStream(fd);
-        } catch (FileNotFoundException e) {
-            Log.e(TAG, "Cannot find usb accessory");
-            stopSelf();
-            return START_STICKY;
-        }
-
         running = true;
-        tcpConnected = false;
-        tcpCompleted = false;
-        usbCompleted = false;
 
+        reset();
         new Thread(new TcpThread()).start();
-        new Thread(new UdpThread()).start();
-        new Thread(new UsbThread()).start();
 
         return START_STICKY;
     }
@@ -86,81 +69,112 @@ public class MyService extends Service {
     @Override
     public void onDestroy() {
         running = false;
-        if (usbFileDescriptor != null) {
-            try {
-                usbFileDescriptor.close();
-            } catch (Exception e) {
-                Log.e(TAG, "Cannot close usb file descriptor");
-            }
-        }
 
+        Log.d(TAG, "Service destroyed");
+    }
+
+    private void reset() {
         if (udcOutputStream != null) {
             try {
                 udcOutputStream.write("\n".getBytes());
+                udcOutputStream.close();
+                udcOutputStream = null;
             } catch (Exception e) {
-                Log.e(TAG, "Cannot unbind accessory");
+                Log.e(TAG, e.getMessage());
             }
         }
-        Log.d(TAG, "Service destroyed");
+
+        if (usbFileDescriptor != null) {
+            try {
+                usbFileDescriptor.close();
+                usbFileDescriptor = null;
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+            }
+        } else {
+            File file = new File(USB_ACCESSORY);
+            try {
+                usbFileDescriptor =
+                        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_WRITE);
+                FileDescriptor fd = usbFileDescriptor.getFileDescriptor();
+                usbInputStream = new FileInputStream(fd);
+                usbOutputStream = new FileOutputStream(fd);
+            } catch (FileNotFoundException e) {
+                Log.e(TAG, e.getMessage());
+            }
+        }
+        tcpConnected = false;
+        tcpCompleted = false;
+        usbCompleted = false;
     }
 
     class TcpThread implements Runnable {
         public void run() {
+            ServerSocket serverSocket = null;
             try {
-                ServerSocket serverSocket = new ServerSocket(5288, 5);
+                serverSocket = new ServerSocket(5288, 5);
                 serverSocket.setReuseAddress(true);
-
-                Log.d(TAG, "tcp - listening");
-                Socket clientSocket = serverSocket.accept();
-                clientSocket.setSoTimeout(5000);
-                Log.d(TAG, "tcp - phone has connected back");
-
-                tcpConnected = true;
-
-                // Bind accessory to UDC
-                udcOutputStream = new FileOutputStream(UDC);
-                udcOutputStream.write(DUMMY_UDC.getBytes());
-
-                tcpOutputStream = clientSocket.getOutputStream();
-                tcpInputStream = new DataInputStream(clientSocket.getInputStream());
-                tcpOutputStream.write(VERSION_REQUEST);
-                tcpOutputStream.flush();
-                byte[] buf = new byte[MAX_BUFFER_LENGTH];
-                tcpInputStream.read(buf);
-
-                tcpCompleted = true;
-
-                // wait for usb initialization
-                while (!usbCompleted && running) {
-                    Log.d(TAG, "tcp - waiting for usb");
-                    Thread.sleep(100);
-                }
-
-                int messageLength;
-                int headerLength;
-
-                while (running) {
-                    headerLength = 4;
-                    tcpInputStream.readFully(buf, 0, 4);
-                    messageLength = (buf[2] & 0xFF) << 8 | (buf[3] & 0xFF);
-
-                    // Flag 9 means the header is 8 bytes long (read it in a separate byte
-                    // array)
-                    if ((int) buf[1] == 9) {
-                        headerLength += 4;
-                        tcpInputStream.readFully(buf, 4, 4);
-                    }
-
-                    tcpInputStream.readFully(buf, headerLength, messageLength);
-                    usbOutputStream.write(Arrays.copyOf(buf, messageLength + headerLength));
-                }
-
-                serverSocket.close();
-                Log.d(TAG, "tcp - end");
-                stopSelf();
             } catch (Exception e) {
                 Log.e(TAG, "tcp - error " + e.getMessage());
-                stopSelf();
+                return;
+            }
+
+            while (true) {
+                try {
+                    Log.d(TAG, "tcp - listening");
+
+                    new Thread(new UdpThread()).start();
+
+                    Socket clientSocket = serverSocket.accept();
+                    clientSocket.setSoTimeout(5000);
+                    Log.d(TAG, "tcp - phone connected");
+
+                    tcpConnected = true;
+
+                    // Bind accessory to UDC
+                    udcOutputStream = new FileOutputStream(UDC);
+                    udcOutputStream.write(DUMMY_UDC.getBytes());
+
+                    new Thread(new UsbThread()).start();
+
+                    tcpOutputStream = clientSocket.getOutputStream();
+                    tcpInputStream = new DataInputStream(clientSocket.getInputStream());
+                    tcpOutputStream.write(VERSION_REQUEST);
+                    tcpOutputStream.flush();
+                    byte[] buf = new byte[MAX_BUFFER_LENGTH];
+                    tcpInputStream.read(buf);
+
+                    tcpCompleted = true;
+
+                    // wait for usb initialization
+                    while (!usbCompleted) {
+                        Log.d(TAG, "tcp - waiting for usb");
+                        Thread.sleep(100);
+                    }
+
+                    int messageLength;
+                    int headerLength;
+
+                    while (tcpConnected) {
+                        headerLength = 4;
+                        tcpInputStream.readFully(buf, 0, 4);
+                        messageLength = (buf[2] & 0xFF) << 8 | (buf[3] & 0xFF);
+
+                        // Flag 9 means the header is 8 bytes long (read it in a separate byte
+                        // array)
+                        if ((int) buf[1] == 9) {
+                            headerLength += 4;
+                            tcpInputStream.readFully(buf, 4, 4);
+                        }
+
+                        tcpInputStream.readFully(buf, headerLength, messageLength);
+                        usbOutputStream.write(Arrays.copyOf(buf, messageLength + headerLength));
+                    }
+
+                } catch (Exception e) {
+                    Log.e(TAG, "tcp - error " + e.getMessage());
+                    reset();
+                }
             }
         }
     }
@@ -181,16 +195,17 @@ public class MyService extends Service {
                     br = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
                     while ((line = br.readLine()) != null) {
-                        Log.d(TAG, "tcp - ip neigh output " + line);
+                        Log.d(TAG, "udp - ip neigh output " + line);
                         String[] splitted = line.split(" +");
                         if ((splitted == null) || (splitted.length < 1)) {
-                            Log.d(TAG, "tcp - not splitted?!");
+                            Log.d(TAG, "udp - not splitted?!");
                             continue;
                         }
 
                         addr = InetAddress.getByName(splitted[0]);
                         Log.d(TAG, "udp - sending trigger to " + splitted[0]);
-                        // send to every address, only the phone with AAStarter will try to connect
+                        // send to every address, only the phone with AAStarter will try to
+                        // connect
                         // back
                         packet = new DatagramPacket(buf, buf.length, addr, 4455);
 
@@ -204,7 +219,7 @@ public class MyService extends Service {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
-                    Log.e(TAG, "udp - error " + e.getMessage());
+                    Log.e(TAG, "udp - sleep error " + e.getMessage());
                 }
             }
 
@@ -221,22 +236,21 @@ public class MyService extends Service {
                 usbOutputStream.write(VERSION_RESPONSE);
                 usbCompleted = true;
 
-                while (!tcpCompleted && running) {
+                while (!tcpCompleted) {
                     Log.d(TAG, "usb - waiting for local");
                     Thread.sleep(100);
                 }
 
                 int length;
-                while (running) {
+                while (tcpConnected) {
                     length = usbInputStream.read(buf);
                     tcpOutputStream.write(Arrays.copyOf(buf, length));
                 }
 
                 Log.d(TAG, "usb - end");
-                stopSelf();
             } catch (Exception e) {
                 Log.e(TAG, "usb - error " + e.getMessage());
-                stopSelf();
+                reset();
             }
         }
     }
