@@ -9,9 +9,7 @@ import android.util.Log;
 import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -32,13 +30,13 @@ public class MyService extends Service {
     private static final int MAX_BUFFER_LENGTH = 16384;
     private static final String[] IP_NEIGH_COMMAND = {"ip", "neigh", "show", "dev", "wlan0"};
 
-    private ParcelFileDescriptor usbFileDescriptor;
-    private FileOutputStream usbOutputStream;
-    private FileInputStream usbInputStream;
-    private FileOutputStream udcOutputStream;
+    private ParcelFileDescriptor usbFileDescriptor = null;
+    private FileOutputStream usbOutputStream = null;
+    private FileInputStream usbInputStream = null;
+    private FileOutputStream udcOutputStream = null;
 
-    private static OutputStream tcpOutputStream;
-    private static DataInputStream tcpInputStream;
+    private static OutputStream tcpOutputStream = null;
+    private static DataInputStream tcpInputStream = null;
 
     private boolean running = false;
     private boolean tcpConnected = false;
@@ -84,6 +82,24 @@ public class MyService extends Service {
             }
         }
 
+        if (usbInputStream != null) {
+            try {
+                usbInputStream.close();
+                usbInputStream = null;
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+            }
+        }
+
+        if (usbOutputStream != null) {
+            try {
+                usbOutputStream.close();
+                usbOutputStream = null;
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+            }
+        }
+
         if (usbFileDescriptor != null) {
             try {
                 usbFileDescriptor.close();
@@ -91,18 +107,26 @@ public class MyService extends Service {
             } catch (Exception e) {
                 Log.e(TAG, e.getMessage());
             }
-        } else {
-            File file = new File(USB_ACCESSORY);
+        }
+
+        if (tcpInputStream != null) {
             try {
-                usbFileDescriptor =
-                        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_WRITE);
-                FileDescriptor fd = usbFileDescriptor.getFileDescriptor();
-                usbInputStream = new FileInputStream(fd);
-                usbOutputStream = new FileOutputStream(fd);
-            } catch (FileNotFoundException e) {
+                tcpInputStream.close();
+                tcpInputStream = null;
+            } catch (Exception e) {
                 Log.e(TAG, e.getMessage());
             }
         }
+
+        if (tcpOutputStream != null) {
+            try {
+                tcpOutputStream.close();
+                tcpOutputStream = null;
+            } catch (Exception e) {
+                Log.e(TAG, e.getMessage());
+            }
+        }
+
         tcpConnected = false;
         tcpCompleted = false;
         usbCompleted = false;
@@ -232,6 +256,12 @@ public class MyService extends Service {
             try {
                 Log.d(TAG, "usb - start");
                 byte buf[] = new byte[MAX_BUFFER_LENGTH];
+
+                File usbFile = new File(USB_ACCESSORY);
+                usbFileDescriptor =
+                        ParcelFileDescriptor.open(usbFile, ParcelFileDescriptor.MODE_READ_WRITE);
+                usbInputStream = new FileInputStream(usbFileDescriptor.getFileDescriptor());
+                usbOutputStream = new FileOutputStream(usbFileDescriptor.getFileDescriptor());
                 usbInputStream.read(buf);
                 usbOutputStream.write(VERSION_RESPONSE);
                 usbCompleted = true;
