@@ -18,7 +18,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Arrays;
 
 public class MyService extends Service {
     private static final String TAG = "AAGateWayService";
@@ -192,7 +191,7 @@ public class MyService extends Service {
                         }
 
                         tcpInputStream.readFully(buf, headerLength, messageLength);
-                        usbOutputStream.write(Arrays.copyOf(buf, messageLength + headerLength));
+                        usbOutputStream.write(buf, 0, messageLength + headerLength);
                     }
 
                 } catch (Exception e) {
@@ -229,8 +228,7 @@ public class MyService extends Service {
                         addr = InetAddress.getByName(splitted[0]);
                         Log.d(TAG, "udp - sending trigger to " + splitted[0]);
                         // send to every address, only the phone with AAStarter will try to
-                        // connect
-                        // back
+                        // connect back
                         packet = new DatagramPacket(buf, buf.length, addr, 4455);
 
                         DatagramSocket socket = new DatagramSocket();
@@ -274,7 +272,7 @@ public class MyService extends Service {
                 int length;
                 while (tcpConnected) {
                     length = usbInputStream.read(buf);
-                    tcpOutputStream.write(Arrays.copyOf(buf, length));
+                    tcpOutputStream.write(buf, 0, length);
                 }
 
                 Log.d(TAG, "usb - end");
