@@ -1,5 +1,6 @@
 package com.carretrofit.aagateway;
 
+import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -27,7 +28,7 @@ public class MyReceiver extends BroadcastReceiver {
     private void enableHotspot(Context context) {
         WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         WifiConfiguration wifiConfig = new WifiConfiguration();
-        wifiConfig.SSID = "KIA Cerato";
+        wifiConfig.SSID = BluetoothAdapter.getDefaultAdapter().getName();
         wifiConfig.preSharedKey = "CarRetrofit";
         wifiConfig.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
         wifiConfig.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
