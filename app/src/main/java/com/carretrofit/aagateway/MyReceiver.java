@@ -18,24 +18,16 @@ public class MyReceiver extends BroadcastReceiver {
 
         if (action.equals(Intent.ACTION_BOOT_COMPLETED)) {
             Log.d(TAG, "Received boot completed");
+            enableHotspot(context);
             Intent i = new Intent(context, MyService.class);
             context.startService(i);
-        } else if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
-            int wifiState =
-                    intent.getIntExtra(
-                            WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_UNKNOWN);
-
-            if (wifiState == WifiManager.WIFI_STATE_ENABLED) {
-                Log.d(TAG, "Enabling hotspot");
-                enableHotspot(context);
-            }
         }
     }
 
     private void enableHotspot(Context context) {
         WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         WifiConfiguration wifiConfig = new WifiConfiguration();
-        wifiConfig.SSID = "Car Retrofit";
+        wifiConfig.SSID = "KIA Cerato";
         wifiConfig.preSharedKey = "CarRetrofit";
         wifiConfig.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
         wifiConfig.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
