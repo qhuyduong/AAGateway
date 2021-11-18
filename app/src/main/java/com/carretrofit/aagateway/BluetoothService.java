@@ -19,12 +19,7 @@ import com.carretrofit.aagateway.proto.WifiSecurityResponseMessage;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.nio.ByteBuffer;
-import java.util.Enumeration;
 import java.util.UUID;
 
 public class BluetoothService extends Service {
@@ -152,32 +147,12 @@ public class BluetoothService extends Service {
             try {
                 WifiInfoRequestMessage.WifiInfoRequest.Builder newBuilder =
                         WifiInfoRequestMessage.WifiInfoRequest.newBuilder();
-                newBuilder.setIpAddress(getLocalIpAddress());
+                newBuilder.setIpAddress(Constants.IP_ADDRESS);
                 newBuilder.setPort(Constants.TCP_PORT);
                 sendToPhone(newBuilder.build().toByteArray(), (short) 1);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        }
-
-        private String getLocalIpAddress() {
-            try {
-                for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
-                        en.hasMoreElements(); ) {
-                    NetworkInterface intf = en.nextElement();
-                    for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses();
-                            enumIpAddr.hasMoreElements(); ) {
-                        InetAddress inetAddress = enumIpAddr.nextElement();
-                        if (!inetAddress.isLoopbackAddress()
-                                && inetAddress instanceof Inet4Address) {
-                            return inetAddress.getHostAddress();
-                        }
-                    }
-                }
-            } catch (SocketException e) {
-                e.printStackTrace();
-            }
-            return null;
         }
 
         private void sendToPhone(byte[] bArr, short s) throws IOException {
