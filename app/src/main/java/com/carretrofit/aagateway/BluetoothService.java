@@ -19,7 +19,12 @@ import com.carretrofit.aagateway.proto.WifiSecurityResponseMessage;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
+import java.util.Enumeration;
 import java.util.UUID;
 
 public class BluetoothService extends Service {
@@ -82,7 +87,7 @@ public class BluetoothService extends Service {
     private void connectToPhone(BluetoothDevice device) {
         try {
             device.createRfcommSocketToServiceRecord(A2DP_UUID).connect();
-            innerconnectPhone();
+            innerConnectToPhone();
             Intent i = new Intent(this, MyService.class);
             startService(i);
         } catch (IOException e) {
@@ -90,13 +95,11 @@ public class BluetoothService extends Service {
         }
     }
 
-    private void innerconnectPhone() {
+    private void innerConnectToPhone() {
         try {
             WifiInfoRequestMessage.WifiInfoRequest.Builder newBuilder =
                     WifiInfoRequestMessage.WifiInfoRequest.newBuilder();
-            String ip = getLocalIpAddress();
-            Log.d(TAG, "ip = " + ip);
-            newBuilder.setIpAddress(ip);
+            newBuilder.setIpAddress(getLocalIpAddress());
             newBuilder.setPort(Constants.TCP_PORT);
             sendToPhone(newBuilder.build().toByteArray(), (short) 1);
         } catch (Exception e) {
@@ -104,10 +107,23 @@ public class BluetoothService extends Service {
         }
     }
 
-    private String getLocalIpAddress() {
-        WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-        int ipAddress = wifiManager.getConnectionInfo().getIpAddress();
-        return "192.168.43.1";
+    public static String getLocalIpAddress() {
+        try {
+            for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
+                    en.hasMoreElements(); ) {
+                NetworkInterface intf = en.nextElement();
+                for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses();
+                        enumIpAddr.hasMoreElements(); ) {
+                    InetAddress inetAddress = enumIpAddr.nextElement();
+                    if (!inetAddress.isLoopbackAddress() && inetAddress instanceof Inet4Address) {
+                        return inetAddress.getHostAddress();
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private void sendToPhone(byte[] bArr, short s) throws IOException {
@@ -128,7 +144,8 @@ public class BluetoothService extends Service {
             WifiSecurityResponseMessage.WifiSecurityReponse.Builder newBuilder =
                     WifiSecurityResponseMessage.WifiSecurityReponse.newBuilder();
             newBuilder.setSsid(BluetoothAdapter.getDefaultAdapter().getName());
-            newBuilder.setBssid("28:ee:52:16:29:12");
+            WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+            newBuilder.setBssid(wifiManager.getConnectionInfo().getMacAddress());
             newBuilder.setAccessPointType(
                     WifiSecurityResponseMessage.WifiSecurityReponse.AccessPointType.STATIC);
             newBuilder.setKey(Constants.WIFI_PASSWORD);
