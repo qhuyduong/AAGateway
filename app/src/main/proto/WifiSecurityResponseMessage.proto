@@ -20,7 +20,7 @@
 
 syntax = "proto2";
 
-package f1x.aasdk.proto.messages;
+package com.carretrofit.aagateway.proto;
 
 message WifiSecurityReponse {
     required string ssid = 1;
