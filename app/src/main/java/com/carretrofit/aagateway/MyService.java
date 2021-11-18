@@ -21,7 +21,6 @@ public class MyService extends Service {
     private static final byte[] VERSION_REQUEST = {0, 3, 0, 6, 0, 1, 0, 1, 0, 2};
     private static final byte[] VERSION_RESPONSE = {0, 3, 0, 8, 0, 2, 0, 1, 0, 4, 0, 0};
     private static final int MAX_BUFFER_LENGTH = 16384;
-    private static final int TCP_PORT = 5288;
 
     private FileOutputStream usbOutputStream;
     private FileInputStream usbInputStream;
@@ -63,12 +62,14 @@ public class MyService extends Service {
     class TcpThread implements Runnable {
         public void run() {
             ServerSocket serverSocket = null;
+            Socket socket = null;
             try {
                 Log.d(TAG, "tcp - start");
-                serverSocket = new ServerSocket(TCP_PORT, 5);
+                serverSocket = new ServerSocket(Constants.TCP_PORT, 5);
                 serverSocket.setReuseAddress(true);
 
-                Socket socket = serverSocket.accept();
+                socket = serverSocket.accept();
+                serverSocket.close();
 
                 Log.d(TAG, "tcp - phone connected");
 
@@ -108,30 +109,36 @@ public class MyService extends Service {
                     usbOutputStream.write(buf, 0, messageLength + headerLength);
                 }
 
-                serverSocket.close();
                 Log.d(TAG, "tcp - end");
             } catch (Exception e) {
-                Log.e(TAG, e.getMessage());
+                Log.e(TAG, "tcp - error " + e.getMessage());
             } finally {
                 if (tcpInputStream != null) {
                     try {
                         tcpInputStream.close();
                     } catch (IOException e) {
-                        Log.e(TAG, e.getMessage());
+                        Log.e(TAG, "tcp - error " + e.getMessage());
                     }
                 }
                 if (tcpOutputStream != null) {
                     try {
                         tcpOutputStream.close();
                     } catch (IOException e) {
-                        Log.e(TAG, e.getMessage());
+                        Log.e(TAG, "tcp - error " + e.getMessage());
+                    }
+                }
+                if (socket != null) {
+                    try {
+                        socket.close();
+                    } catch (IOException e) {
+                        Log.e(TAG, "tcp - error " + e.getMessage());
                     }
                 }
                 if (serverSocket != null) {
                     try {
                         serverSocket.close();
                     } catch (IOException e) {
-                        Log.e(TAG, e.getMessage());
+                        Log.e(TAG, "tcp - error " + e.getMessage());
                     }
                 }
 
@@ -171,20 +178,20 @@ public class MyService extends Service {
 
                 Log.d(TAG, "usb - end");
             } catch (Exception e) {
-                Log.e(TAG, e.getMessage());
+                Log.e(TAG, "usb - error " + e.getMessage());
             } finally {
                 if (usbInputStream != null) {
                     try {
                         usbInputStream.close();
                     } catch (Exception e) {
-                        Log.e(TAG, e.getMessage());
+                        Log.e(TAG, "usb - error " + e.getMessage());
                     }
                 }
                 if (usbOutputStream != null) {
                     try {
                         usbOutputStream.close();
                     } catch (Exception e) {
-                        Log.e(TAG, e.getMessage());
+                        Log.e(TAG, "usb - error " + e.getMessage());
                     }
                 }
 
@@ -192,7 +199,7 @@ public class MyService extends Service {
                     try {
                         usbFileDescriptor.close();
                     } catch (IOException e) {
-                        Log.e(TAG, e.getMessage());
+                        Log.e(TAG, "usb - error " + e.getMessage());
                     }
                 }
                 stopSelf();

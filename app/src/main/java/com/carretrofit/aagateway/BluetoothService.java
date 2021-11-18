@@ -29,12 +29,7 @@ public class BluetoothService extends Service {
     private static final UUID MY_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
 
     private boolean running = false;
-
-    private BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
-    private BluetoothServerSocket serverSocket;
-    private BluetoothSocket socket;
-    private BluetoothDevice device;
-
+    private BluetoothServerSocket serverSocket = null;
     private DataInputStream inputDataStream;
     private OutputStream outputStream;
 
@@ -42,49 +37,20 @@ public class BluetoothService extends Service {
             new BroadcastReceiver() {
                 public void onReceive(Context context, Intent intent) {
                     String action = intent.getAction();
-                    Log.d(TAG, "action: " + action);
-                    if ("android.bluetooth.device.action.ACL_CONNECTED".equals(action)) {
-                        device =
+                    if (action.equals(BluetoothDevice.ACTION_ACL_CONNECTED)) {
+                        BluetoothDevice device =
                                 (BluetoothDevice)
-                                        intent.getParcelableExtra(
-                                                "android.bluetooth.device.extra.DEVICE");
+                                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                        Log.d(TAG, "Device connected " + device);
 
-                        aaListenerThread.start();
-                    } else if ("android.bluetooth.device.action.UUID".equals(action)) {
-                    } else if (action.equals("android.bluetooth.adapter.action.STATE_CHANGED")) {
-                        int intExtra =
-                                intent.getIntExtra(
-                                        "android.bluetooth.adapter.extra.STATE", Integer.MIN_VALUE);
-                        Log.d(TAG, "intExtra = " + intExtra);
-                    }
-                }
-            };
-
-    private Thread aaListenerThread =
-            new Thread() {
-                public void run() {
-                    try {
-                        serverSocket = adapter.listenUsingRfcommWithServiceRecord(TAG, MY_UUID);
-                        adapter.listenUsingRfcommWithServiceRecord("HFP", HFP_UUID);
-                        Log.d(TAG, "Listenning for AA profile: " + serverSocket);
-                        socket = serverSocket.accept();
-                        Log.d(TAG, "Bluetooth device connected " + socket);
-                        inputDataStream = new DataInputStream(socket.getInputStream());
-                        outputStream = socket.getOutputStream();
-                        connectToPhone(device);
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                        new Thread(new AAListenerThread(device)).start();
                     }
                 }
             };
 
     @Override
     public void onCreate() {
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction("android.bluetooth.device.action.ACL_CONNECTED");
-        intentFilter.addAction("android.bluetooth.device.action.UUID");
-        intentFilter.addAction("android.bluetooth.adapter.action.STATE_CHANGED");
-
+        IntentFilter intentFilter = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
         registerReceiver(bluetoothReceiver, intentFilter);
     }
 
@@ -113,18 +79,14 @@ public class BluetoothService extends Service {
         Log.d(TAG, "Service destroyed");
     }
 
-    private void connectToPhone(BluetoothDevice bluetoothDevice) {
-        if (bluetoothDevice != null) {
-            Log.d(TAG, "device = " + bluetoothDevice);
-
-            try {
-                bluetoothDevice.createRfcommSocketToServiceRecord(A2DP_UUID).connect();
-                innerconnectPhone();
-                Intent i = new Intent(this, MyService.class);
-                startService(i);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+    private void connectToPhone(BluetoothDevice device) {
+        try {
+            device.createRfcommSocketToServiceRecord(A2DP_UUID).connect();
+            innerconnectPhone();
+            Intent i = new Intent(this, MyService.class);
+            startService(i);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -135,9 +97,8 @@ public class BluetoothService extends Service {
             String ip = getLocalIpAddress();
             Log.d(TAG, "ip = " + ip);
             newBuilder.setIpAddress(ip);
-            newBuilder.setPort(5288);
-            Log.d(TAG, "sending initial wifi info: " + newBuilder);
-            send(newBuilder.build().toByteArray(), (short) 1);
+            newBuilder.setPort(Constants.TCP_PORT);
+            sendToPhone(newBuilder.build().toByteArray(), (short) 1);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -149,35 +110,58 @@ public class BluetoothService extends Service {
         return "192.168.43.1";
     }
 
-    private void send(byte[] bArr, short s) throws IOException {
+    private void sendToPhone(byte[] bArr, short s) throws IOException {
         ByteBuffer allocate = ByteBuffer.allocate(bArr.length + 4);
-        Log.d(TAG, "Data length: " + bArr.length);
         allocate.put((byte) ((bArr.length >> 8) & 255));
         allocate.put((byte) (bArr.length & 255));
         allocate.putShort(s);
         allocate.put(bArr);
         outputStream.write(allocate.array());
-        Log.d(TAG, "Data sent");
-        read();
+        readFromPhone();
     }
 
-    private void read() throws IOException {
+    private void readFromPhone() throws IOException {
         byte[] bArr = new byte[1024];
         inputDataStream.read(bArr);
-        Log.d(TAG, "Got data from phone: ");
         short s = (short) (((bArr[2] & 255) << 8) | (bArr[3] & 255));
         if (s == 2) {
-            Log.d(TAG, "s == 2");
             WifiSecurityResponseMessage.WifiSecurityReponse.Builder newBuilder =
                     WifiSecurityResponseMessage.WifiSecurityReponse.newBuilder();
+            newBuilder.setSsid(BluetoothAdapter.getDefaultAdapter().getName());
             newBuilder.setBssid("28:ee:52:16:29:12");
             newBuilder.setAccessPointType(
                     WifiSecurityResponseMessage.WifiSecurityReponse.AccessPointType.STATIC);
-            newBuilder.setKey("CarRetrofit");
+            newBuilder.setKey(Constants.WIFI_PASSWORD);
             newBuilder.setSecurityMode(
                     WifiSecurityResponseMessage.WifiSecurityReponse.SecurityMode.WPA2_PERSONAL);
-            newBuilder.setSsid("KIA Cerato");
-            send(newBuilder.build().toByteArray(), (short) 3);
+            sendToPhone(newBuilder.build().toByteArray(), (short) 3);
+        }
+    }
+
+    private class AAListenerThread implements Runnable {
+        private BluetoothDevice device;
+
+        public AAListenerThread(BluetoothDevice dev) {
+            device = dev;
+        }
+
+        public void run() {
+            try {
+                BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+                BluetoothServerSocket serverSocket =
+                        adapter.listenUsingRfcommWithServiceRecord(TAG, MY_UUID);
+                BluetoothSocket socket = serverSocket.accept(2000);
+                serverSocket.close();
+                if (socket == null) {
+                    return;
+                }
+
+                inputDataStream = new DataInputStream(socket.getInputStream());
+                outputStream = socket.getOutputStream();
+                connectToPhone(device);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 }
