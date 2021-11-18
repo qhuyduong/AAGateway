@@ -18,9 +18,17 @@ public class MyReceiver extends BroadcastReceiver {
         String action = intent.getAction();
 
         if (action.equals(Intent.ACTION_BOOT_COMPLETED)) {
+            BluetoothAdapter.getDefaultAdapter().disable();
             enableHotspot(context);
-            Intent i = new Intent(context, BluetoothService.class);
-            context.startService(i);
+        } else if (action.equals("android.net.wifi.WIFI_AP_STATE_CHANGED")) {
+            int wifiState =
+                    intent.getIntExtra(
+                            WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_UNKNOWN);
+            if (wifiState % 10 == WifiManager.WIFI_STATE_ENABLED) {
+                Intent i = new Intent(context, BluetoothService.class);
+                context.startService(i);
+                BluetoothAdapter.getDefaultAdapter().enable();
+            }
         }
     }
 
