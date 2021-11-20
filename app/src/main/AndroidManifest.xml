@@ -17,16 +17,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AAGateway">
         <receiver
-            android:name=".MyReceiver"
+            android:name=".BootstrapReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
                 <action android:name="android.net.wifi.WIFI_AP_STATE_CHANGED" />
             </intent-filter>
         </receiver>
 
-        <service android:name=".MyService" android:exported="false" />
+        <service android:name=".RelayService" android:exported="false" />
         <service android:name=".BluetoothService" android:exported="false" />
     </application>
 

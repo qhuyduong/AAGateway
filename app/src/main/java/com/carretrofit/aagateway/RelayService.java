@@ -15,8 +15,8 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-public class MyService extends Service {
-    private static final String TAG = "AAGateWayService";
+public class RelayService extends Service {
+    private static final String TAG = "AAGateWayRelayService";
     private static final String USB_ACCESSORY = "/dev/usb_accessory";
     private static final byte[] VERSION_REQUEST = {0, 3, 0, 6, 0, 1, 0, 1, 0, 2};
     private static final byte[] VERSION_RESPONSE = {0, 3, 0, 8, 0, 2, 0, 1, 0, 4, 0, 0};

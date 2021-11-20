@@ -1,23 +1,29 @@
 package com.carretrofit.aagateway;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
 import android.util.Log;
+
+import com.symbio.scc.SccRfComm;
 
 import java.lang.reflect.Method;
 
-public class MyReceiver extends BroadcastReceiver {
-    private static final String TAG = "AAGatewayReceiver";
+public class BootstrapReceiver extends BroadcastReceiver {
+    private static final String TAG = "AAGatewayBootstrapReceiver";
 
     @Override
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
 
         if (action.equals(Intent.ACTION_BOOT_COMPLETED)) {
+            Intent relayIntent = new Intent(context, RelayService.class);
+            context.startService(relayIntent);
             BluetoothAdapter.getDefaultAdapter().disable();
             enableHotspot(context);
         } else if (action.equals("android.net.wifi.WIFI_AP_STATE_CHANGED")) {
@@ -25,10 +31,14 @@ public class MyReceiver extends BroadcastReceiver {
                     intent.getIntExtra(
                             WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_UNKNOWN);
             if (wifiState % 10 == WifiManager.WIFI_STATE_ENABLED) {
-                Intent i = new Intent(context, BluetoothService.class);
-                context.startService(i);
                 BluetoothAdapter.getDefaultAdapter().enable();
             }
+        } else if (action.equals(BluetoothDevice.ACTION_ACL_CONNECTED)) {
+            BluetoothDevice device =
+                    (BluetoothDevice) intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+            Log.d(TAG, "Device connected " + device);
+            SccRfComm sccRfComm = new SccRfComm(new Handler());
+            sccRfComm.connect(device);
         }
     }
 
