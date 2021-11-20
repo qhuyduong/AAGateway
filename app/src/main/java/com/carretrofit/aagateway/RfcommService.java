@@ -159,7 +159,6 @@ public class RfcommService extends Service {
                             .setIpAddress(Constants.IP_ADDRESS)
                             .setPort(Constants.TCP_PORT)
                             .build();
-            Log.d(TAG, "Sending wifi info request to phone " + request.toString());
             byte[] bytes = request.toByteArray();
             ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 4);
             buffer.put((byte) ((bytes.length >> 8) & 255));
@@ -203,8 +202,8 @@ public class RfcommService extends Service {
             byte[] bytes = new byte[1024];
             inputStream.read(bytes);
             short command = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            Log.d(TAG, "command = " + command);
             if (command != WIFI_SECURITY_RESPONSE) {
+                Log.d(TAG, "Received command = " + command);
                 return false;
             }
             return true;
