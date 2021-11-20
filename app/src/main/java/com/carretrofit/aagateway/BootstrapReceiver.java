@@ -36,6 +36,6 @@ public class BootstrapReceiver extends BroadcastReceiver {
             e.printStackTrace();
         }
 
-        return (value != null) ? value : defaultValue;
+        return (value != null || !value.equals("")) ? value : defaultValue;
     }
 }

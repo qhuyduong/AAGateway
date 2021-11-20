@@ -97,7 +97,10 @@ public class RfcommService extends Service {
     public void onDestroy() {
         running = false;
         unregisterReceiver(deviceReceiver);
-        unregisterReceiver(adapterReceiver);
+        try {
+            unregisterReceiver(adapterReceiver);
+        } catch (IllegalArgumentException e) {
+        }
         stopForeground(true);
         Log.d(TAG, "Service destroyed");
     }
