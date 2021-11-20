@@ -22,8 +22,8 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-public class BluetoothService extends Service {
-    private static final String TAG = "AAGateWayBluetoothService";
+public class RfcommService extends Service {
+    private static final String TAG = "AAGateWayRfcommService";
     private static final UUID A2DP_UUID = UUID.fromString("00001112-0000-1000-8000-00805F9B34FB");
     private static final UUID MY_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
 
@@ -136,7 +136,7 @@ public class BluetoothService extends Service {
             try {
                 device.createRfcommSocketToServiceRecord(A2DP_UUID).connect();
                 innerConnectToPhone();
-                Intent i = new Intent(getApplicationContext(), MyService.class);
+                Intent i = new Intent(getApplicationContext(), RelayService.class);
                 startService(i);
             } catch (IOException e) {
                 e.printStackTrace();

@@ -28,7 +28,7 @@
         </receiver>
 
         <service android:name=".RelayService" android:exported="false" />
-        <service android:name=".BluetoothService" android:exported="false" />
+        <service android:name=".RfcommService" android:exported="false" />
     </application>
 
 </manifest>
