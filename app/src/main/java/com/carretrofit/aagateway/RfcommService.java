@@ -10,6 +10,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.util.Log;
@@ -20,6 +21,7 @@ import f1x.aasdk.proto.messages.WifiSecurityRequestMessage.WifiSecurityRequest;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
@@ -32,12 +34,12 @@ public class RfcommService extends Service {
     private static final short WIFI_INFO_RESPONSE = 2;
     private static final short WIFI_SECURITY_REQUEST = 3;
     private static final short WIFI_SECURITY_RESPONSE = 6;
+    private String btName = BluetoothAdapter.getDefaultAdapter().getName();
 
-    private BroadcastReceiver receiver =
+    private BroadcastReceiver deviceReceiver =
             new BroadcastReceiver() {
                 public void onReceive(Context context, Intent intent) {
                     String action = intent.getAction();
-                    Log.d(TAG, "action = " + action);
                     if (action.equals(BluetoothDevice.ACTION_ACL_CONNECTED)) {
                         BluetoothDevice device =
                                 (BluetoothDevice)
@@ -49,13 +51,28 @@ public class RfcommService extends Service {
                 }
             };
 
+    private BroadcastReceiver adapterReceiver =
+            new BroadcastReceiver() {
+                public void onReceive(Context context, Intent intent) {
+                    String action = intent.getAction();
+                    if (action.equals(BluetoothAdapter.ACTION_LOCAL_NAME_CHANGED)) {
+                        unregisterReceiver(adapterReceiver);
+                        btName = (String) intent.getStringExtra(BluetoothAdapter.EXTRA_LOCAL_NAME);
+                        Log.d(TAG, "Bluetooth local name changed to " + btName);
+                        enableHotspot();
+                    }
+                }
+            };
+
     @Override
     public void onCreate() {
         Notification notification =
                 new Notification.Builder(this).setContentTitle("Rfcomm Service").build();
         startForeground(2, notification);
-        IntentFilter intentFilter = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
-        registerReceiver(receiver, intentFilter);
+        IntentFilter deviceFilter = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
+        registerReceiver(deviceReceiver, deviceFilter);
+        IntentFilter adapterFilter = new IntentFilter(BluetoothAdapter.ACTION_LOCAL_NAME_CHANGED);
+        registerReceiver(adapterReceiver, adapterFilter);
     }
 
     @Override
@@ -72,7 +89,8 @@ public class RfcommService extends Service {
 
     @Override
     public void onDestroy() {
-        unregisterReceiver(receiver);
+        unregisterReceiver(deviceReceiver);
+        unregisterReceiver(adapterReceiver);
         Log.d(TAG, "Service destroyed");
     }
 
@@ -165,13 +183,13 @@ public class RfcommService extends Service {
             WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
             WifiSecurityRequest response =
                     WifiSecurityRequest.newBuilder()
-                            .setSsid("KIA Cerato")
+                            .setSsid(btName)
                             .setBssid(wifiManager.getConnectionInfo().getMacAddress())
-                            .setAccessPointType(WifiSecurityRequest.AccessPointType.DYNAMIC)
+                            .setAccessPointType(WifiSecurityRequest.AccessPointType.STATIC)
                             .setKey(Constants.WIFI_PASSWORD)
                             .setSecurityMode(WifiSecurityRequest.SecurityMode.WPA2_PERSONAL)
                             .build();
-            Log.d(TAG, "Sending wifi security response to phone " + response.toString());
+            Log.d(TAG, "Sending wifi security request to phone " + response.toString());
             byte[] bytes = response.toByteArray();
             ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 4);
             buffer.put((byte) ((bytes.length >> 8) & 255));
@@ -190,6 +208,27 @@ public class RfcommService extends Service {
                 return false;
             }
             return true;
+        }
+    }
+
+    private void enableHotspot() {
+        WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        WifiConfiguration wifiConfig = new WifiConfiguration();
+        wifiConfig.SSID = btName;
+        wifiConfig.preSharedKey = Constants.WIFI_PASSWORD;
+        wifiConfig.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
+        wifiConfig.allowedProtocols.set(WifiConfiguration.Protocol.RSN);
+        wifiConfig.allowedProtocols.set(WifiConfiguration.Protocol.WPA);
+        wifiConfig.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
+        try {
+            wifiManager.setWifiEnabled(false);
+            Method method =
+                    wifiManager
+                            .getClass()
+                            .getMethod("setWifiApEnabled", WifiConfiguration.class, boolean.class);
+            method.invoke(wifiManager, wifiConfig, true);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

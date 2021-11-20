@@ -111,35 +111,23 @@ public class RelayService extends Service {
                         usbOutputStream.write(buf, 0, messageLength + headerLength);
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "tcp - error " + e.getMessage());
+                    e.printStackTrace();
                 } finally {
-                    if (tcpInputStream != null) {
-                        try {
+                    try {
+                        if (tcpInputStream != null) {
                             tcpInputStream.close();
-                        } catch (IOException e) {
-                            Log.e(TAG, "tcp - error " + e.getMessage());
                         }
-                    }
-                    if (tcpOutputStream != null) {
-                        try {
+                        if (tcpOutputStream != null) {
                             tcpOutputStream.close();
-                        } catch (IOException e) {
-                            Log.e(TAG, "tcp - error " + e.getMessage());
                         }
-                    }
-                    if (socket != null) {
-                        try {
+                        if (socket != null) {
                             socket.close();
-                        } catch (IOException e) {
-                            Log.e(TAG, "tcp - error " + e.getMessage());
                         }
-                    }
-                    if (serverSocket != null) {
-                        try {
+                        if (serverSocket != null) {
                             serverSocket.close();
-                        } catch (IOException e) {
-                            Log.e(TAG, "tcp - error " + e.getMessage());
                         }
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
 
                     UdcConnector.disconnect();
@@ -178,29 +166,21 @@ public class RelayService extends Service {
                         tcpOutputStream.write(buf, 0, length);
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "usb - error " + e.getMessage());
+                    e.printStackTrace();
                 } finally {
-                    if (usbInputStream != null) {
-                        try {
+                    try {
+                        if (usbInputStream != null) {
                             usbInputStream.close();
-                        } catch (Exception e) {
-                            Log.e(TAG, "usb - error " + e.getMessage());
                         }
-                    }
-                    if (usbOutputStream != null) {
-                        try {
+                        if (usbOutputStream != null) {
                             usbOutputStream.close();
-                        } catch (Exception e) {
-                            Log.e(TAG, "usb - error " + e.getMessage());
                         }
-                    }
 
-                    if (usbFileDescriptor != null) {
-                        try {
+                        if (usbFileDescriptor != null) {
                             usbFileDescriptor.close();
-                        } catch (IOException e) {
-                            Log.e(TAG, "usb - error " + e.getMessage());
                         }
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
 
                     Log.d(TAG, "usb - end");
