@@ -27,8 +27,8 @@ import java.util.UUID;
 
 public class RfcommService extends Service {
     private static final String TAG = "AAGateWayRfcommService";
-    private static final String AAW_NAME = "Android Auto Wireless";
-    private static final UUID AAW_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
+    private static final String WAA_NAME = "Wireless Android Auto";
+    private static final UUID WAA_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
     private static final UUID HSP_UUID = UUID.fromString("00001112-0000-1000-8000-00805f9b34fb");
     private static final short WIFI_INFO_REQUEST = 1;
     private static final short WIFI_INFO_RESPONSE = 2;
@@ -48,7 +48,7 @@ public class RfcommService extends Service {
                                         intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                         Log.d(TAG, "Device connected " + device);
 
-                        new Thread(new AAWListener(device)).start();
+                        new Thread(new WAAListener(device)).start();
                     }
                 }
             };
@@ -105,12 +105,12 @@ public class RfcommService extends Service {
         Log.d(TAG, "Service destroyed");
     }
 
-    private class AAWListener implements Runnable {
+    private class WAAListener implements Runnable {
         private BluetoothDevice device;
         private DataInputStream inputStream;
         private OutputStream outputStream;
 
-        public AAWListener(BluetoothDevice dev) {
+        public WAAListener(BluetoothDevice dev) {
             device = dev;
         }
 
@@ -121,13 +121,13 @@ public class RfcommService extends Service {
                 Log.d(TAG, "Listening to device " + device);
                 serverSocket =
                         BluetoothAdapter.getDefaultAdapter()
-                                .listenUsingRfcommWithServiceRecord(AAW_NAME, AAW_UUID);
+                                .listenUsingRfcommWithServiceRecord(WAA_NAME, WAA_UUID);
                 socket = serverSocket.accept();
                 serverSocket.close();
 
                 inputStream = new DataInputStream(socket.getInputStream());
                 outputStream = socket.getOutputStream();
-                Log.d(TAG, "Connecting to AAW on device " + device);
+                Log.d(TAG, "Connecting to WAA on device " + device);
                 connectToPhone(device);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -214,9 +214,9 @@ public class RfcommService extends Service {
             inputStream.read(bytes);
             short command = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
             if (command != WIFI_SECURITY_RESPONSE) {
-                Log.d(TAG, "Received command = " + command);
                 return false;
             }
+            Log.d(TAG, "WAA started");
             return true;
         }
     }
