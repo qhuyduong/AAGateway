@@ -24,12 +24,11 @@ import java.util.UUID;
 
 public class RfcommService extends Service {
     private static final String TAG = "AAGateWayRfcommService";
-    private static final UUID A2DP_UUID = UUID.fromString("00001112-0000-1000-8000-00805F9B34FB");
-    private static final UUID MY_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
+    private static final String AAW_NAME = "Android Auto Wireless";
+    private static final UUID AAW_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
+    private static final UUID HSP_UUID = UUID.fromString("00001112-0000-1000-8000-00805f9b34fb");
 
-    private boolean running = false;
-
-    private BroadcastReceiver bluetoothReceiver =
+    private BroadcastReceiver receiver =
             new BroadcastReceiver() {
                 public void onReceive(Context context, Intent intent) {
                     String action = intent.getAction();
@@ -39,7 +38,7 @@ public class RfcommService extends Service {
                                         intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                         Log.d(TAG, "Device connected " + device);
 
-                        new Thread(new AAListenerThread(device)).start();
+                        new Thread(new AAWListenerThread(device)).start();
                     }
                 }
             };
@@ -47,7 +46,7 @@ public class RfcommService extends Service {
     @Override
     public void onCreate() {
         IntentFilter intentFilter = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
-        registerReceiver(bluetoothReceiver, intentFilter);
+        registerReceiver(receiver, intentFilter);
     }
 
     @Override
@@ -57,30 +56,23 @@ public class RfcommService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (running) {
-            Log.d(TAG, "Service already running");
-            return START_STICKY;
-        }
-
         Log.d(TAG, "Service started");
-        running = true;
 
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
-        running = false;
-        unregisterReceiver(bluetoothReceiver);
+        unregisterReceiver(receiver);
         Log.d(TAG, "Service destroyed");
     }
 
-    private class AAListenerThread implements Runnable {
+    private class AAWListenerThread implements Runnable {
         private BluetoothDevice device;
         private DataInputStream inputStream;
         private OutputStream outputStream;
 
-        public AAListenerThread(BluetoothDevice dev) {
+        public AAWListenerThread(BluetoothDevice dev) {
             device = dev;
         }
 
@@ -90,13 +82,13 @@ public class RfcommService extends Service {
             try {
                 serverSocket =
                         BluetoothAdapter.getDefaultAdapter()
-                                .listenUsingRfcommWithServiceRecord(TAG, MY_UUID);
-                socket = serverSocket.accept(10000);
+                                .listenUsingRfcommWithServiceRecord(AAW_NAME, AAW_UUID);
+                socket = serverSocket.accept();
                 serverSocket.close();
 
                 inputStream = new DataInputStream(socket.getInputStream());
                 outputStream = socket.getOutputStream();
-                Log.d(TAG, "Connecting to device " + device);
+                Log.d(TAG, "Connecting to AAW on device " + device);
                 connectToPhone(device);
             } catch (Exception e) {
                 Log.e(TAG, "AAListener - error " + e.getMessage());
@@ -134,10 +126,8 @@ public class RfcommService extends Service {
 
         private void connectToPhone(BluetoothDevice device) {
             try {
-                device.createRfcommSocketToServiceRecord(A2DP_UUID).connect();
+                device.createRfcommSocketToServiceRecord(HSP_UUID).connect();
                 innerConnectToPhone();
-                Intent i = new Intent(getApplicationContext(), RelayService.class);
-                startService(i);
             } catch (IOException e) {
                 e.printStackTrace();
             }

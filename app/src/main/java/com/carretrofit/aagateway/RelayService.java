@@ -28,7 +28,6 @@ public class RelayService extends Service {
     private static OutputStream tcpOutputStream;
     private static DataInputStream tcpInputStream;
 
-    private boolean running = false;
     private boolean tcpCompleted = false;
     private boolean usbCompleted = false;
 
@@ -39,12 +38,7 @@ public class RelayService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (running) {
-            Log.d(TAG, "Service already running");
-            return START_STICKY;
-        }
         Log.d(TAG, "Service started");
-        running = true;
 
         new Thread(new TcpThread()).start();
         new Thread(new UsbThread()).start();
@@ -54,8 +48,6 @@ public class RelayService extends Service {
 
     @Override
     public void onDestroy() {
-        running = false;
-
         Log.d(TAG, "Service destroyed");
     }
 
@@ -86,7 +78,7 @@ public class RelayService extends Service {
                 tcpCompleted = true;
 
                 // wait for usb initialization
-                while (!usbCompleted && running) {
+                while (!usbCompleted) {
                     Log.d(TAG, "tcp - waiting for usb");
                     Thread.sleep(100);
                 }
@@ -94,7 +86,7 @@ public class RelayService extends Service {
                 int messageLength;
                 int headerLength;
 
-                while (running) {
+                while (true) {
                     headerLength = 4;
                     tcpInputStream.readFully(buf, 0, 4);
                     messageLength = (buf[2] & 0xFF) << 8 | (buf[3] & 0xFF);
@@ -108,8 +100,6 @@ public class RelayService extends Service {
                     tcpInputStream.readFully(buf, headerLength, messageLength);
                     usbOutputStream.write(buf, 0, messageLength + headerLength);
                 }
-
-                Log.d(TAG, "tcp - end");
             } catch (Exception e) {
                 Log.e(TAG, "tcp - error " + e.getMessage());
             } finally {
@@ -143,7 +133,8 @@ public class RelayService extends Service {
                 }
 
                 UdcConnector.disconnect();
-                stopSelf();
+
+                Log.d(TAG, "tcp - end");
             }
         }
     }
@@ -163,20 +154,16 @@ public class RelayService extends Service {
                 usbOutputStream.write(VERSION_RESPONSE);
                 usbCompleted = true;
 
-                while (!tcpCompleted && running) {
+                while (!tcpCompleted) {
                     Log.d(TAG, "usb - waiting for local");
                     Thread.sleep(100);
                 }
 
                 int length;
-                while (running) {
+                while (true) {
                     length = usbInputStream.read(buf);
                     tcpOutputStream.write(buf, 0, length);
                 }
-
-                usbFileDescriptor.close();
-
-                Log.d(TAG, "usb - end");
             } catch (Exception e) {
                 Log.e(TAG, "usb - error " + e.getMessage());
             } finally {
@@ -202,7 +189,8 @@ public class RelayService extends Service {
                         Log.e(TAG, "usb - error " + e.getMessage());
                     }
                 }
-                stopSelf();
+
+                Log.d(TAG, "usb - end");
             }
         }
     }
