@@ -22,6 +22,8 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="com.carretrofit.aagateway.action.START" />
+                <action android:name="com.carretrofit.aagateway.action.STOP" />
             </intent-filter>
         </receiver>
 

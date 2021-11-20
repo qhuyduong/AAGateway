@@ -29,6 +29,7 @@ public class RelayService extends Service {
     private static OutputStream tcpOutputStream;
     private static DataInputStream tcpInputStream;
 
+    private boolean running = false;
     private boolean tcpCompleted = false;
     private boolean usbCompleted = false;
 
@@ -46,6 +47,10 @@ public class RelayService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (running) {
+            return START_STICKY;
+        }
+        running = true;
         Log.d(TAG, "Service started");
 
         new Thread(new TcpThread()).start();
@@ -56,12 +61,14 @@ public class RelayService extends Service {
 
     @Override
     public void onDestroy() {
+        running = false;
+        stopForeground(true);
         Log.d(TAG, "Service destroyed");
     }
 
     class TcpThread implements Runnable {
         public void run() {
-            while (true) {
+            while (running) {
                 ServerSocket serverSocket = null;
                 Socket socket = null;
                 try {
@@ -87,7 +94,7 @@ public class RelayService extends Service {
                     tcpCompleted = true;
 
                     // wait for usb initialization
-                    while (!usbCompleted) {
+                    while (!usbCompleted && running) {
                         Log.d(TAG, "tcp - waiting for usb");
                         Thread.sleep(100);
                     }
@@ -95,7 +102,7 @@ public class RelayService extends Service {
                     int messageLength;
                     int headerLength;
 
-                    while (true) {
+                    while (running) {
                         headerLength = 4;
                         tcpInputStream.readFully(buf, 0, 4);
                         messageLength = (buf[2] & 0xFF) << 8 | (buf[3] & 0xFF);
@@ -140,7 +147,7 @@ public class RelayService extends Service {
 
     class UsbThread implements Runnable {
         public void run() {
-            while (true) {
+            while (running) {
                 ParcelFileDescriptor usbFileDescriptor = null;
                 try {
                     Log.d(TAG, "usb - start");
@@ -155,13 +162,13 @@ public class RelayService extends Service {
                     usbOutputStream.write(VERSION_RESPONSE);
                     usbCompleted = true;
 
-                    while (!tcpCompleted) {
+                    while (!tcpCompleted && running) {
                         Log.d(TAG, "usb - waiting for local");
                         Thread.sleep(100);
                     }
 
                     int length;
-                    while (true) {
+                    while (running) {
                         length = usbInputStream.read(buf);
                         tcpOutputStream.write(buf, 0, length);
                     }

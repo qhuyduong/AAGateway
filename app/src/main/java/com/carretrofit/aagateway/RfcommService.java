@@ -36,6 +36,8 @@ public class RfcommService extends Service {
     private static final short WIFI_SECURITY_RESPONSE = 6;
     private String btName = BluetoothAdapter.getDefaultAdapter().getName();
 
+    private boolean running = false;
+
     private BroadcastReceiver deviceReceiver =
             new BroadcastReceiver() {
                 public void onReceive(Context context, Intent intent) {
@@ -82,6 +84,10 @@ public class RfcommService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (running) {
+            return START_STICKY;
+        }
+        running = true;
         Log.d(TAG, "Service started");
 
         return START_STICKY;
@@ -89,8 +95,10 @@ public class RfcommService extends Service {
 
     @Override
     public void onDestroy() {
+        running = false;
         unregisterReceiver(deviceReceiver);
         unregisterReceiver(adapterReceiver);
+        stopForeground(true);
         Log.d(TAG, "Service destroyed");
     }
 
