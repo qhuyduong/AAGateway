@@ -34,13 +34,9 @@ public class RelayService extends Service {
 
     @Override
     public void onCreate() {
-        Notification build =
-                new Notification.Builder(this)
-                        .setContentTitle("Relay Service")
-                        .setPriority(1)
-                        .setTicker("")
-                        .build();
-        startForeground(1, build);
+        Notification notification =
+                new Notification.Builder(this).setContentTitle("Relay Service").build();
+        startForeground(1, notification);
     }
 
     @Override
