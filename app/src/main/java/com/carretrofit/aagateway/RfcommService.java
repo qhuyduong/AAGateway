@@ -13,8 +13,8 @@ import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.util.Log;
 
-import com.carretrofit.aagateway.proto.WifiInfoRequestMessage;
-import com.carretrofit.aagateway.proto.WifiSecurityResponseMessage;
+import f1x.aasdk.proto.messages.WifiInfoRequestMessage;
+import f1x.aasdk.proto.messages.WifiSecurityResponseMessage;
 
 import java.io.DataInputStream;
 import java.io.IOException;
