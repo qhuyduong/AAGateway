@@ -33,6 +33,8 @@ public class RelayService extends Service {
     private boolean tcpCompleted = false;
     private boolean usbCompleted = false;
 
+    private TcpThread tcpThread;
+
     @Override
     public void onCreate() {
         Notification notification =
@@ -53,8 +55,8 @@ public class RelayService extends Service {
         running = true;
         Log.d(TAG, "Service started");
 
-        new Thread(new TcpThread()).start();
-        new Thread(new UsbThread()).start();
+        tcpThread = new TcpThread();
+        tcpThread.start();
 
         return START_STICKY;
     }
@@ -62,20 +64,32 @@ public class RelayService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        tcpThread.terminate();
         stopForeground(true);
         Log.d(TAG, "Service destroyed");
     }
 
-    class TcpThread implements Runnable {
+    class TcpThread extends Thread {
+        private ServerSocket serverSocket = null;
+
+        public void terminate() {
+            if (serverSocket != null) {
+                try {
+                    serverSocket.close();
+                    serverSocket = null;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
         public void run() {
             while (running) {
-                ServerSocket serverSocket = null;
                 Socket socket = null;
                 try {
                     Log.d(TAG, "tcp - start");
                     serverSocket = new ServerSocket(Constants.TCP_PORT, 5);
                     serverSocket.setReuseAddress(true);
-
                     socket = serverSocket.accept();
                     serverSocket.close();
 
@@ -84,6 +98,8 @@ public class RelayService extends Service {
                     socket.setSoTimeout(5000);
 
                     UdcConnector.connect();
+
+                    new UsbThread().start();
 
                     tcpOutputStream = socket.getOutputStream();
                     tcpInputStream = new DataInputStream(socket.getInputStream());
@@ -145,53 +161,49 @@ public class RelayService extends Service {
         }
     }
 
-    class UsbThread implements Runnable {
+    class UsbThread extends Thread {
         public void run() {
-            while (running) {
-                ParcelFileDescriptor usbFileDescriptor = null;
-                try {
-                    Log.d(TAG, "usb - start");
-                    byte buf[] = new byte[MAX_BUFFER_LENGTH];
-                    File usbFile = new File(USB_ACCESSORY);
-                    usbFileDescriptor =
-                            ParcelFileDescriptor.open(
-                                    usbFile, ParcelFileDescriptor.MODE_READ_WRITE);
-                    usbInputStream = new FileInputStream(usbFileDescriptor.getFileDescriptor());
-                    usbOutputStream = new FileOutputStream(usbFileDescriptor.getFileDescriptor());
-                    usbInputStream.read(buf);
-                    usbOutputStream.write(VERSION_RESPONSE);
-                    usbCompleted = true;
+            ParcelFileDescriptor usbFileDescriptor = null;
+            try {
+                Log.d(TAG, "usb - start");
+                byte buf[] = new byte[MAX_BUFFER_LENGTH];
+                File usbFile = new File(USB_ACCESSORY);
+                usbFileDescriptor =
+                        ParcelFileDescriptor.open(usbFile, ParcelFileDescriptor.MODE_READ_WRITE);
+                usbInputStream = new FileInputStream(usbFileDescriptor.getFileDescriptor());
+                usbOutputStream = new FileOutputStream(usbFileDescriptor.getFileDescriptor());
+                usbInputStream.read(buf);
+                usbOutputStream.write(VERSION_RESPONSE);
+                usbCompleted = true;
 
-                    while (!tcpCompleted && running) {
-                        Log.d(TAG, "usb - waiting for local");
-                        Thread.sleep(100);
-                    }
-
-                    int length;
-                    while (running) {
-                        length = usbInputStream.read(buf);
-                        tcpOutputStream.write(buf, 0, length);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                } finally {
-                    try {
-                        if (usbInputStream != null) {
-                            usbInputStream.close();
-                        }
-                        if (usbOutputStream != null) {
-                            usbOutputStream.close();
-                        }
-
-                        if (usbFileDescriptor != null) {
-                            usbFileDescriptor.close();
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-
-                    Log.d(TAG, "usb - end");
+                while (!tcpCompleted && running) {
+                    Log.d(TAG, "usb - waiting for local");
+                    Thread.sleep(100);
                 }
+
+                int length;
+                while (running) {
+                    length = usbInputStream.read(buf);
+                    tcpOutputStream.write(buf, 0, length);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                try {
+                    if (usbInputStream != null) {
+                        usbInputStream.close();
+                    }
+                    if (usbOutputStream != null) {
+                        usbOutputStream.close();
+                    }
+                    if (usbFileDescriptor != null) {
+                        usbFileDescriptor.close();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                Log.d(TAG, "usb - end");
             }
         }
     }
