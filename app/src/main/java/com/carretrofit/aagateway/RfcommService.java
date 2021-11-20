@@ -1,5 +1,6 @@
 package com.carretrofit.aagateway;
 
+import android.app.Notification;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -13,8 +14,8 @@ import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.util.Log;
 
-import f1x.aasdk.proto.messages.WifiInfoRequestMessage;
-import f1x.aasdk.proto.messages.WifiSecurityResponseMessage;
+import f1x.aasdk.proto.messages.WifiInfoRequestMessage.WifiInfoRequest;
+import f1x.aasdk.proto.messages.WifiSecurityRequestMessage.WifiSecurityRequest;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -27,24 +28,32 @@ public class RfcommService extends Service {
     private static final String AAW_NAME = "Android Auto Wireless";
     private static final UUID AAW_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
     private static final UUID HSP_UUID = UUID.fromString("00001112-0000-1000-8000-00805f9b34fb");
+    private static final short WIFI_INFO_REQUEST = 1;
+    private static final short WIFI_INFO_RESPONSE = 2;
+    private static final short WIFI_SECURITY_REQUEST = 3;
+    private static final short WIFI_SECURITY_RESPONSE = 6;
 
     private BroadcastReceiver receiver =
             new BroadcastReceiver() {
                 public void onReceive(Context context, Intent intent) {
                     String action = intent.getAction();
+                    Log.d(TAG, "action = " + action);
                     if (action.equals(BluetoothDevice.ACTION_ACL_CONNECTED)) {
                         BluetoothDevice device =
                                 (BluetoothDevice)
                                         intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                         Log.d(TAG, "Device connected " + device);
 
-                        new Thread(new AAWListenerThread(device)).start();
+                        new Thread(new AAWListener(device)).start();
                     }
                 }
             };
 
     @Override
     public void onCreate() {
+        Notification notification =
+                new Notification.Builder(this).setContentTitle("Rfcomm Service").build();
+        startForeground(2, notification);
         IntentFilter intentFilter = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
         registerReceiver(receiver, intentFilter);
     }
@@ -67,12 +76,12 @@ public class RfcommService extends Service {
         Log.d(TAG, "Service destroyed");
     }
 
-    private class AAWListenerThread implements Runnable {
+    private class AAWListener implements Runnable {
         private BluetoothDevice device;
         private DataInputStream inputStream;
         private OutputStream outputStream;
 
-        public AAWListenerThread(BluetoothDevice dev) {
+        public AAWListener(BluetoothDevice dev) {
             device = dev;
         }
 
@@ -80,6 +89,7 @@ public class RfcommService extends Service {
             BluetoothServerSocket serverSocket = null;
             BluetoothSocket socket = null;
             try {
+                Log.d(TAG, "Listening to device " + device);
                 serverSocket =
                         BluetoothAdapter.getDefaultAdapter()
                                 .listenUsingRfcommWithServiceRecord(AAW_NAME, AAW_UUID);
@@ -91,35 +101,22 @@ public class RfcommService extends Service {
                 Log.d(TAG, "Connecting to AAW on device " + device);
                 connectToPhone(device);
             } catch (Exception e) {
-                Log.e(TAG, "AAListener - error " + e.getMessage());
+                e.printStackTrace();
             } finally {
-                if (inputStream != null) {
-                    try {
+                try {
+                    if (inputStream != null) {
                         inputStream.close();
-                    } catch (IOException e) {
-                        Log.e(TAG, "AAListener - error " + e.getMessage());
                     }
-                }
-                if (outputStream != null) {
-                    try {
+                    if (outputStream != null) {
                         outputStream.close();
-                    } catch (IOException e) {
-                        Log.e(TAG, "AAListener - error " + e.getMessage());
                     }
-                }
-                if (socket != null) {
-                    try {
+                    if (socket != null) {
                         socket.close();
-                    } catch (IOException e) {
-                        Log.e(TAG, "AAListener - error " + e.getMessage());
                     }
-                }
-                if (serverSocket != null) {
-                    try {
+                    if (serverSocket != null) {
                         serverSocket.close();
-                    } catch (IOException e) {
-                        Log.e(TAG, "AAListener - error " + e.getMessage());
                     }
+                } catch (IOException e) {
                 }
             }
         }
@@ -127,51 +124,72 @@ public class RfcommService extends Service {
         private void connectToPhone(BluetoothDevice device) {
             try {
                 device.createRfcommSocketToServiceRecord(HSP_UUID).connect();
-                innerConnectToPhone();
+                sendWifiInfoRequest();
+                if (!receiveWifiInfoResponse()) {
+                    return;
+                }
+                sendWifiSecurityRequest();
+                while (!receiveWifiSecurityResponse()) {}
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
-        private void innerConnectToPhone() {
-            try {
-                WifiInfoRequestMessage.WifiInfoRequest.Builder newBuilder =
-                        WifiInfoRequestMessage.WifiInfoRequest.newBuilder();
-                newBuilder.setIpAddress(Constants.IP_ADDRESS);
-                newBuilder.setPort(Constants.TCP_PORT);
-                sendToPhone(newBuilder.build().toByteArray(), (short) 1);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        private void sendWifiInfoRequest() throws IOException {
+            WifiInfoRequest request =
+                    WifiInfoRequest.newBuilder()
+                            .setIpAddress(Constants.IP_ADDRESS)
+                            .setPort(Constants.TCP_PORT)
+                            .build();
+            Log.d(TAG, "Sending wifi info request to phone " + request.toString());
+            byte[] bytes = request.toByteArray();
+            ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 4);
+            buffer.put((byte) ((bytes.length >> 8) & 255));
+            buffer.put((byte) (bytes.length & 255));
+            buffer.putShort(WIFI_INFO_REQUEST);
+            buffer.put(bytes);
+            outputStream.write(buffer.array());
         }
 
-        private void sendToPhone(byte[] bArr, short s) throws IOException {
-            ByteBuffer allocate = ByteBuffer.allocate(bArr.length + 4);
-            allocate.put((byte) ((bArr.length >> 8) & 255));
-            allocate.put((byte) (bArr.length & 255));
-            allocate.putShort(s);
-            allocate.put(bArr);
-            outputStream.write(allocate.array());
-            readFromPhone();
+        private boolean receiveWifiInfoResponse() throws IOException {
+            byte[] bytes = new byte[1024];
+            inputStream.read(bytes);
+            short command = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
+            if (command != WIFI_INFO_RESPONSE) {
+                return false;
+            }
+            return true;
         }
 
-        private void readFromPhone() throws IOException {
-            byte[] bArr = new byte[1024];
-            inputStream.read(bArr);
-            short s = (short) (((bArr[2] & 255) << 8) | (bArr[3] & 255));
-            if (s == 2) {
-                WifiSecurityResponseMessage.WifiSecurityReponse.Builder newBuilder =
-                        WifiSecurityResponseMessage.WifiSecurityReponse.newBuilder();
-                newBuilder.setSsid(BluetoothAdapter.getDefaultAdapter().getName());
-                WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-                newBuilder.setBssid(wifiManager.getConnectionInfo().getMacAddress());
-                newBuilder.setAccessPointType(
-                        WifiSecurityResponseMessage.WifiSecurityReponse.AccessPointType.STATIC);
-                newBuilder.setKey(Constants.WIFI_PASSWORD);
-                newBuilder.setSecurityMode(
-                        WifiSecurityResponseMessage.WifiSecurityReponse.SecurityMode.WPA2_PERSONAL);
-                sendToPhone(newBuilder.build().toByteArray(), (short) 3);
+        private void sendWifiSecurityRequest() throws IOException {
+            WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+            WifiSecurityRequest response =
+                    WifiSecurityRequest.newBuilder()
+                            .setSsid("KIA Cerato")
+                            .setBssid(wifiManager.getConnectionInfo().getMacAddress())
+                            .setAccessPointType(WifiSecurityRequest.AccessPointType.DYNAMIC)
+                            .setKey(Constants.WIFI_PASSWORD)
+                            .setSecurityMode(WifiSecurityRequest.SecurityMode.WPA2_PERSONAL)
+                            .build();
+            Log.d(TAG, "Sending wifi security response to phone " + response.toString());
+            byte[] bytes = response.toByteArray();
+            ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 4);
+            buffer.put((byte) ((bytes.length >> 8) & 255));
+            buffer.put((byte) (bytes.length & 255));
+            buffer.putShort(WIFI_SECURITY_REQUEST);
+            buffer.put(bytes);
+            outputStream.write(buffer.array());
+        }
+
+        private boolean receiveWifiSecurityResponse() throws IOException {
+            byte[] bytes = new byte[1024];
+            inputStream.read(bytes);
+            short command = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
+            Log.d(TAG, "command = " + command);
+            if (command != WIFI_SECURITY_RESPONSE) {
+                return false;
             }
+            return true;
         }
     }
 }
