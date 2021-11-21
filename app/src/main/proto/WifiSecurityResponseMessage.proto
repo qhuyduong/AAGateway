@@ -20,7 +20,7 @@ syntax = "proto2";
 
 package f1x.aasdk.proto.messages;
 
-message WifiSecurityRequest {
+message WifiSecurityResponse {
     required string ssid = 1;
     required string key = 2;
     required string bssid = 3;
