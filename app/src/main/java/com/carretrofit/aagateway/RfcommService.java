@@ -76,7 +76,6 @@ public class RfcommService extends Service {
         }
         running = true;
         Log.d(TAG, "Service started");
-        new Thread(new WAAListener()).start();
 
         return START_STICKY;
     }
