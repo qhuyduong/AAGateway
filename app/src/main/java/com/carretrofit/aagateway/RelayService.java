@@ -78,7 +78,6 @@ public class RelayService extends Service {
                     serverSocket.close();
                     serverSocket = null;
                 } catch (IOException e) {
-                    e.printStackTrace();
                 }
             }
         }
@@ -150,7 +149,6 @@ public class RelayService extends Service {
                             serverSocket.close();
                         }
                     } catch (IOException e) {
-                        e.printStackTrace();
                     }
 
                     UdcConnector.disconnect();
@@ -200,7 +198,6 @@ public class RelayService extends Service {
                         usbFileDescriptor.close();
                     }
                 } catch (IOException e) {
-                    e.printStackTrace();
                 }
 
                 Log.d(TAG, "usb - end");
