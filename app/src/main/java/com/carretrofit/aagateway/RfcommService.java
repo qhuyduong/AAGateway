@@ -14,24 +14,27 @@ import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.util.Log;
 
-import f1x.aasdk.proto.messages.WifiInfoRequestMessage.WifiInfoRequest;
-import f1x.aasdk.proto.messages.WifiSecurityResponseMessage.WifiSecurityResponse;
+import com.carretrofit.aagateway.proto.Wifi.WifiConnectionStatus;
+import com.carretrofit.aagateway.proto.Wifi.WifiInfoResponse;
+import com.carretrofit.aagateway.proto.Wifi.WifiStartRequest;
+import com.carretrofit.aagateway.proto.Wifi.WifiStartResponse;
 
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.UUID;
 
 public class RfcommService extends Service {
     private static final String TAG = "AAGateWayRfcommService";
     private static final String WAA_NAME = "Wireless Android Auto";
     private static final UUID WAA_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
-    private static final short WIFI_INFO_REQUEST = 1;
-    private static final short WIFI_SECURITY_REQUEST = 2;
-    private static final short WIFI_SECURITY_RESPONSE = 3;
-    private static final short WIFI_INFO_RESPONSE = 7;
-    private static final short WIFI_CONNECTION_ESTABLISHED = 6;
+    private static final short WIFI_START_REQUEST = 1;
+    private static final short WIFI_INFO_REQUEST = 2;
+    private static final short WIFI_INFO_RESPONSE = 3;
+    private static final short WIFI_START_RESPONSE = 7;
+    private static final short WIFI_CONNECTION_STATUS = 6;
 
     private boolean running = false;
 
@@ -107,15 +110,15 @@ public class RfcommService extends Service {
                 inputStream = new DataInputStream(socket.getInputStream());
                 outputStream = socket.getOutputStream();
 
-                sendWifiInfoRequest();
-                if (!receiveWifiSecurityRequest()) {
+                sendWifiStartRequest();
+                if (!receiveWifiInfoRequest()) {
                     return;
                 }
-                sendWifiSecurityResponse();
-                if (!receiveWifiInfoResponse()) {
+                sendWifiInfoResponse();
+                if (!receiveWifiStartResponse()) {
                     return;
                 }
-                if (!receiveWifiConnectionEstablished()) {
+                if (!receiveWifiConnectionStatus()) {
                     return;
                 }
             } catch (Exception e) {
@@ -139,9 +142,9 @@ public class RfcommService extends Service {
             }
         }
 
-        private void sendWifiInfoRequest() throws IOException {
-            WifiInfoRequest request =
-                    WifiInfoRequest.newBuilder()
+        private void sendWifiStartRequest() throws IOException {
+            WifiStartRequest request =
+                    WifiStartRequest.newBuilder()
                             .setIpAddress(Constants.IP_ADDRESS)
                             .setPort(Constants.TCP_PORT)
                             .build();
@@ -149,59 +152,68 @@ public class RfcommService extends Service {
             ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 4);
             buffer.put((byte) ((bytes.length >> 8) & 255));
             buffer.put((byte) (bytes.length & 255));
-            buffer.putShort(WIFI_INFO_REQUEST);
+            buffer.putShort(WIFI_START_REQUEST);
             buffer.put(bytes);
             outputStream.write(buffer.array());
         }
 
-        private boolean receiveWifiSecurityRequest() throws IOException {
+        private boolean receiveWifiInfoRequest() throws IOException {
             byte[] bytes = new byte[1024];
             int length = inputStream.read(bytes);
             short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            if (type != WIFI_SECURITY_REQUEST) {
+            if (type != WIFI_INFO_REQUEST) {
                 return false;
             }
             return true;
         }
 
-        private void sendWifiSecurityResponse() throws IOException {
+        private void sendWifiInfoResponse() throws IOException {
             WifiManager wifiManager = (WifiManager) getSystemService(Context.WIFI_SERVICE);
-            WifiSecurityResponse response =
-                    WifiSecurityResponse.newBuilder()
+            WifiInfoResponse response =
+                    WifiInfoResponse.newBuilder()
                             .setSsid(BluetoothAdapter.getDefaultAdapter().getName())
+                            .setPassword(Constants.WIFI_PASSWORD)
                             .setBssid(wifiManager.getConnectionInfo().getMacAddress())
-                            .setAccessPointType(WifiSecurityResponse.AccessPointType.STATIC)
-                            .setKey(Constants.WIFI_PASSWORD)
-                            .setSecurityMode(WifiSecurityResponse.SecurityMode.WPA2_PERSONAL)
+                            .setSecurityMode(WifiInfoResponse.SecurityMode.WPA2_PERSONAL)
                             .build();
-            Log.d(TAG, "Sending wifi security response to phone " + response.toString());
+            Log.d(TAG, "Sending wifi info response " + response.toString());
             byte[] bytes = response.toByteArray();
             ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 4);
             buffer.put((byte) ((bytes.length >> 8) & 255));
             buffer.put((byte) (bytes.length & 255));
-            buffer.putShort(WIFI_SECURITY_RESPONSE);
+            buffer.putShort(WIFI_INFO_RESPONSE);
             buffer.put(bytes);
             outputStream.write(buffer.array());
         }
 
-        private boolean receiveWifiInfoResponse() throws IOException {
+        private boolean receiveWifiStartResponse() throws IOException {
             byte[] bytes = new byte[1024];
             int length = inputStream.read(bytes);
             short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            if (type != WIFI_INFO_RESPONSE) {
+            if (type != WIFI_START_RESPONSE) {
                 return false;
             }
+            Log.d(
+                    TAG,
+                    "Wifi start response "
+                            + WifiStartResponse.parseFrom(Arrays.copyOfRange(bytes, 4, length))
+                                    .toString());
             return true;
         }
 
-        private boolean receiveWifiConnectionEstablished() throws IOException {
+        private boolean receiveWifiConnectionStatus() throws IOException {
             byte[] bytes = new byte[1024];
             int length = inputStream.read(bytes);
             short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            if (type != WIFI_CONNECTION_ESTABLISHED) {
+            if (type != WIFI_CONNECTION_STATUS) {
                 return false;
             }
             Log.d(TAG, "WAA started");
+            Log.d(
+                    TAG,
+                    "Wifi connection status "
+                            + WifiConnectionStatus.parseFrom(Arrays.copyOfRange(bytes, 4, length))
+                                    .toString());
             return true;
         }
     }
