@@ -159,7 +159,6 @@ public class RfcommService extends Service {
             byte[] bytes = new byte[1024];
             int length = inputStream.read(bytes);
             short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            Log.d(TAG, "type = " + type + " length = " + length);
             if (type != WIFI_SECURITY_REQUEST) {
                 return false;
             }
@@ -190,7 +189,6 @@ public class RfcommService extends Service {
             byte[] bytes = new byte[1024];
             int length = inputStream.read(bytes);
             short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            Log.d(TAG, "type = " + type + " length = " + length);
             if (type != WIFI_INFO_RESPONSE) {
                 return false;
             }
@@ -201,7 +199,6 @@ public class RfcommService extends Service {
             byte[] bytes = new byte[1024];
             int length = inputStream.read(bytes);
             short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            Log.d(TAG, "type = " + type + " length = " + length);
             if (type != WIFI_CONNECTION_ESTABLISHED) {
                 return false;
             }
