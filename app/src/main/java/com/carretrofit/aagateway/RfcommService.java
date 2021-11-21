@@ -29,7 +29,7 @@ public class RfcommService extends Service {
     private static final String TAG = "AAGateWayRfcommService";
     private static final String WAA_NAME = "Wireless Android Auto";
     private static final UUID WAA_UUID = UUID.fromString("4de17a00-52cb-11e6-bdf4-0800200c9a66");
-    private static final UUID HSP_UUID = UUID.fromString("00001112-0000-1000-8000-00805f9b34fb");
+    private static final UUID HFP_UUID = UUID.fromString("0000111f-0000-1000-8000-00805f9b34fb");
     private static final short WIFI_INFO_REQUEST = 1;
     private static final short WIFI_INFO_RESPONSE = 2;
     private static final short WIFI_SECURITY_REQUEST = 3;
@@ -152,7 +152,7 @@ public class RfcommService extends Service {
 
         private void connectToPhone(BluetoothDevice device) {
             try {
-                device.createRfcommSocketToServiceRecord(HSP_UUID).connect();
+                device.createRfcommSocketToServiceRecord(HFP_UUID).connect();
                 sendWifiInfoRequest();
                 if (!receiveWifiInfoResponse()) {
                     return;
