@@ -3,9 +3,13 @@ package com.carretrofit.aagateway;
 import android.app.Notification;
 import android.app.Service;
 import android.content.Intent;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+
+import com.dseltec.widget.DsToast;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -138,6 +142,20 @@ public class RelayService extends Service {
                         }
                     } catch (IOException e) {
                     }
+
+                    new Handler(Looper.getMainLooper())
+                            .post(
+                                    new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            DsToast toast =
+                                                    DsToast.makeText(
+                                                            getApplicationContext(),
+                                                            getString(R.string.waa_disconnected),
+                                                            1);
+                                            toast.show();
+                                        }
+                                    });
 
                     UdcConnector.disconnect();
 

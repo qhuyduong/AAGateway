@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">AAGateway</string>
+    <string name="connecting_to_waa">Đang kết nối Android Auto không dây</string>
+    <string name="waa_disconnected">Ngắt kết nối Android Auto không dây</string>
+</resources>

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">AAGateway</string>
+    <string name="connecting_to_waa">Connecting to Wireless Android Auto</string>
+    <string name="waa_disconnected">Wireless Android Auto disconnected</string>
 </resources>

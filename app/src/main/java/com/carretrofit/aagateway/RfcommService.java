@@ -11,13 +11,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import com.carretrofit.aagateway.proto.Wifi.WifiConnectionStatus;
 import com.carretrofit.aagateway.proto.Wifi.WifiInfoResponse;
 import com.carretrofit.aagateway.proto.Wifi.WifiStartRequest;
 import com.carretrofit.aagateway.proto.Wifi.WifiStartResponse;
+import com.dseltec.widget.DsToast;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -146,6 +149,21 @@ public class RfcommService extends Service {
                         sendWifiInfoResponse();
                         break;
                     case WIFI_START_RESPONSE:
+                        new Handler(Looper.getMainLooper())
+                                .post(
+                                        new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                DsToast toast =
+                                                        DsToast.makeText(
+                                                                getApplicationContext(),
+                                                                getString(
+                                                                        R.string.connecting_to_waa),
+                                                                1);
+                                                toast.show();
+                                            }
+                                        });
+
                         Log.d(
                                 TAG,
                                 "Received wifi start response "
