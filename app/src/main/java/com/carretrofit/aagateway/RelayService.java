@@ -78,7 +78,6 @@ public class RelayService extends Service {
             if (serverSocket != null) {
                 try {
                     serverSocket.close();
-                    serverSocket = null;
                 } catch (IOException e) {
                 }
             }
@@ -170,9 +169,9 @@ public class RelayService extends Service {
             ParcelFileDescriptor usbFileDescriptor = null;
             try {
                 Log.d(TAG, "usb - start");
-                File usbFile = new File(USB_ACCESSORY);
                 usbFileDescriptor =
-                        ParcelFileDescriptor.open(usbFile, ParcelFileDescriptor.MODE_READ_WRITE);
+                        ParcelFileDescriptor.open(
+                                new File(USB_ACCESSORY), ParcelFileDescriptor.MODE_READ_WRITE);
                 usbInputStream = new FileInputStream(usbFileDescriptor.getFileDescriptor());
                 usbOutputStream = new FileOutputStream(usbFileDescriptor.getFileDescriptor());
 
