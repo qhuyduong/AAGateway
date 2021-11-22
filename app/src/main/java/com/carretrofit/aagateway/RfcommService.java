@@ -111,16 +111,7 @@ public class RfcommService extends Service {
                 outputStream = socket.getOutputStream();
 
                 sendWifiStartRequest();
-                if (!receiveWifiInfoRequest()) {
-                    return;
-                }
-                sendWifiInfoResponse();
-                if (!receiveWifiStartResponse()) {
-                    return;
-                }
-                if (!receiveWifiConnectionStatus()) {
-                    return;
-                }
+                handleMessage();
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
@@ -142,12 +133,46 @@ public class RfcommService extends Service {
             }
         }
 
+        private void handleMessage() throws IOException {
+            boolean done = false;
+            while (!done) {
+                byte[] bytes = new byte[1024];
+                int length = inputStream.read(bytes);
+                short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
+
+                switch (type) {
+                    case WIFI_INFO_REQUEST:
+                        Log.d(TAG, "Received wifi info request");
+                        sendWifiInfoResponse();
+                        break;
+                    case WIFI_START_RESPONSE:
+                        Log.d(
+                                TAG,
+                                "Received wifi start response "
+                                        + WifiStartResponse.parseFrom(
+                                                        Arrays.copyOfRange(bytes, 4, length))
+                                                .toString());
+                        break;
+                    case WIFI_CONNECTION_STATUS:
+                        Log.d(
+                                TAG,
+                                "Received wifi connection status "
+                                        + WifiConnectionStatus.parseFrom(
+                                                        Arrays.copyOfRange(bytes, 4, length))
+                                                .toString());
+                        done = true;
+                        break;
+                }
+            }
+        }
+
         private void sendWifiStartRequest() throws IOException {
             WifiStartRequest request =
                     WifiStartRequest.newBuilder()
                             .setIpAddress(Constants.IP_ADDRESS)
                             .setPort(Constants.TCP_PORT)
                             .build();
+            Log.d(TAG, "Sending wifi start request " + request.toString());
             byte[] bytes = request.toByteArray();
             ByteBuffer buffer = ByteBuffer.allocate(bytes.length + 4);
             buffer.put((byte) ((bytes.length >> 8) & 255));
@@ -155,16 +180,6 @@ public class RfcommService extends Service {
             buffer.putShort(WIFI_START_REQUEST);
             buffer.put(bytes);
             outputStream.write(buffer.array());
-        }
-
-        private boolean receiveWifiInfoRequest() throws IOException {
-            byte[] bytes = new byte[1024];
-            int length = inputStream.read(bytes);
-            short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            if (type != WIFI_INFO_REQUEST) {
-                return false;
-            }
-            return true;
         }
 
         private void sendWifiInfoResponse() throws IOException {
@@ -184,37 +199,6 @@ public class RfcommService extends Service {
             buffer.putShort(WIFI_INFO_RESPONSE);
             buffer.put(bytes);
             outputStream.write(buffer.array());
-        }
-
-        private boolean receiveWifiStartResponse() throws IOException {
-            byte[] bytes = new byte[1024];
-            int length = inputStream.read(bytes);
-            short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            if (type != WIFI_START_RESPONSE) {
-                return false;
-            }
-            Log.d(
-                    TAG,
-                    "Wifi start response "
-                            + WifiStartResponse.parseFrom(Arrays.copyOfRange(bytes, 4, length))
-                                    .toString());
-            return true;
-        }
-
-        private boolean receiveWifiConnectionStatus() throws IOException {
-            byte[] bytes = new byte[1024];
-            int length = inputStream.read(bytes);
-            short type = (short) (((bytes[2] & 255) << 8) | (bytes[3] & 255));
-            if (type != WIFI_CONNECTION_STATUS) {
-                return false;
-            }
-            Log.d(TAG, "WAA started");
-            Log.d(
-                    TAG,
-                    "Wifi connection status "
-                            + WifiConnectionStatus.parseFrom(Arrays.copyOfRange(bytes, 4, length))
-                                    .toString());
-            return true;
         }
     }
 }
