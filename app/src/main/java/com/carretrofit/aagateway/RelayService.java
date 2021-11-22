@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Arrays;
 
 public class RelayService extends Service {
     private static final String TAG = "AAGateWayRelayService";
@@ -30,6 +31,7 @@ public class RelayService extends Service {
 
     private static OutputStream tcpOutputStream;
     private static DataInputStream tcpInputStream;
+    private static CircularBuffer cb;
 
     private boolean running = false;
     private boolean tcpCompleted = false;
@@ -78,7 +80,6 @@ public class RelayService extends Service {
             if (serverSocket != null) {
                 try {
                     serverSocket.close();
-                    serverSocket = null;
                 } catch (IOException e) {
                 }
             }
@@ -87,6 +88,8 @@ public class RelayService extends Service {
         public void run() {
             while (running) {
                 Socket socket = null;
+                cb = new CircularBuffer(100);
+
                 try {
                     Log.d(TAG, "tcp - start");
                     serverSocket = new ServerSocket(Constants.TCP_PORT, 5);
@@ -105,11 +108,13 @@ public class RelayService extends Service {
                     tcpOutputStream = socket.getOutputStream();
                     tcpInputStream = new DataInputStream(socket.getInputStream());
 
-                    byte[] buf = new byte[MAX_BUFFER_LENGTH];
                     int messageLength;
                     int headerLength;
 
+                    new CBThread().start();
+
                     while (running) {
+                        byte[] buf = new byte[MAX_BUFFER_LENGTH];
                         headerLength = 4;
                         tcpInputStream.readFully(buf, 0, 4);
                         messageLength = (buf[2] & 0xFF) << 8 | (buf[3] & 0xFF);
@@ -122,7 +127,11 @@ public class RelayService extends Service {
                         }
 
                         tcpInputStream.readFully(buf, headerLength, messageLength);
-                        usbOutputStream.write(buf, 0, messageLength + headerLength);
+                        try {
+                            cb.add(Arrays.copyOf(buf, messageLength + headerLength));
+                        } catch (Exception e) {
+                            Log.e(TAG, "CircularBuffer overflowed");
+                        }
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -176,7 +185,7 @@ public class RelayService extends Service {
                 usbInputStream = new FileInputStream(usbFileDescriptor.getFileDescriptor());
                 usbOutputStream = new FileOutputStream(usbFileDescriptor.getFileDescriptor());
 
-                byte buf[] = new byte[MAX_BUFFER_LENGTH];
+                byte[] buf = new byte[MAX_BUFFER_LENGTH];
                 int length;
 
                 while (running) {
@@ -200,6 +209,23 @@ public class RelayService extends Service {
                 }
 
                 Log.d(TAG, "usb - end");
+            }
+        }
+    }
+
+    class CBThread extends Thread {
+        public void run() {
+            while (running) {
+                try {
+                    byte[] buf = (byte[]) cb.get();
+                    usbOutputStream.write(buf);
+                } catch (Exception e) {
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException ignored) {
+                    }
+                    continue;
+                }
             }
         }
     }
